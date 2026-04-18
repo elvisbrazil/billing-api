@@ -6,6 +6,7 @@ import {
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import type { Database } from "./db/client.js";
+import { registerProblemDetails } from "./plugins/problem-details.js";
 
 export interface AppOptions {
   db: Database;
@@ -18,6 +19,7 @@ export function buildApp(options: AppOptions) {
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+  registerProblemDetails(app);
 
   app.get("/health", async () => {
     await db.execute(sql`select 1`);
