@@ -1,9 +1,15 @@
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
+import { connect } from "./db/client.js";
 import { loggerOptions } from "./logger.js";
 
 const config = loadConfig();
-const app = buildApp({ logger: loggerOptions(config) });
+const database = connect(config.DATABASE_URL);
+const app = buildApp({ db: database.db, logger: loggerOptions(config) });
+
+app.addHook("onClose", async () => {
+  await database.close();
+});
 
 let closing = false;
 async function shutdown(signal: NodeJS.Signals) {
