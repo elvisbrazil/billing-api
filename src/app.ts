@@ -5,6 +5,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
+import { systemClock, type Clock } from "./clock.js";
 import type { Database } from "./db/client.js";
 import { CustomerRepository } from "./modules/customers/customer.repository.js";
 import { customerRoutes } from "./modules/customers/customer.routes.js";
@@ -12,10 +13,14 @@ import { CustomerService } from "./modules/customers/customer.service.js";
 import { PlanRepository } from "./modules/plans/plan.repository.js";
 import { planRoutes } from "./modules/plans/plan.routes.js";
 import { PlanService } from "./modules/plans/plan.service.js";
+import { SubscriptionRepository } from "./modules/subscriptions/subscription.repository.js";
+import { subscriptionRoutes } from "./modules/subscriptions/subscription.routes.js";
+import { SubscriptionService } from "./modules/subscriptions/subscription.service.js";
 import { registerProblemDetails } from "./plugins/problem-details.js";
 
 export interface AppOptions {
   db: Database;
+  clock?: Clock;
   logger?: FastifyServerOptions["logger"];
 }
 
@@ -27,8 +32,18 @@ export function buildApp(options: AppOptions) {
   app.setSerializerCompiler(serializerCompiler);
   registerProblemDetails(app);
 
-  const plans = new PlanService(new PlanRepository(db));
-  const customers = new CustomerService(new CustomerRepository(db));
+  const clock = options.clock ?? systemClock;
+  const planRepository = new PlanRepository(db);
+  const customerRepository = new CustomerRepository(db);
+
+  const plans = new PlanService(planRepository);
+  const customers = new CustomerService(customerRepository);
+  const subscriptions = new SubscriptionService(
+    new SubscriptionRepository(db),
+    customerRepository,
+    planRepository,
+    clock,
+  );
 
   app.get("/health", async () => {
     await db.execute(sql`select 1`);
@@ -37,6 +52,7 @@ export function buildApp(options: AppOptions) {
 
   app.register(planRoutes, { prefix: "/plans", plans });
   app.register(customerRoutes, { prefix: "/customers", customers });
+  app.register(subscriptionRoutes, { prefix: "/subscriptions", subscriptions });
 
   return app;
 }
