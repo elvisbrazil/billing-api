@@ -57,23 +57,25 @@ export class InvoiceService {
     return this.finalize(draft.id, tx);
   }
 
-  async finalize(invoiceId: string, tx: Database = this.db): Promise<Invoice> {
-    const repository = new InvoiceRepository(tx);
-    const invoice = await repository.findById(invoiceId, { lock: true });
-    if (!invoice) throw notFound(`Invoice ${invoiceId} not found`);
-    if (invoice.status !== "draft") {
-      throw conflict(`Invoice ${invoice.id} is ${invoice.status}, only drafts can be finalized`);
-    }
+  async finalize(invoiceId: string, executor: Database = this.db): Promise<Invoice> {
+    return executor.transaction(async (tx) => {
+      const repository = new InvoiceRepository(tx);
+      const invoice = await repository.findById(invoiceId, { lock: true });
+      if (!invoice) throw notFound(`Invoice ${invoiceId} not found`);
+      if (invoice.status !== "draft") {
+        throw conflict(`Invoice ${invoice.id} is ${invoice.status}, only drafts can be finalized`);
+      }
 
-    const now = this.clock.now();
-    const year = now.getUTCFullYear();
-    const sequence = await repository.nextNumber(year);
+      const now = this.clock.now();
+      const year = now.getUTCFullYear();
+      const sequence = await repository.nextNumber(year);
 
-    return repository.update(invoice.id, {
-      number: formatInvoiceNumber(year, sequence),
-      status: "open",
-      finalizedAt: now,
-      updatedAt: now,
+      return repository.update(invoice.id, {
+        number: formatInvoiceNumber(year, sequence),
+        status: "open",
+        finalizedAt: now,
+        updatedAt: now,
+      });
     });
   }
 
