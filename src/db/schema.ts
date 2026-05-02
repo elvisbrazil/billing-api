@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -73,3 +74,65 @@ export const subscriptions = pgTable(
     index("subscriptions_due_idx").on(t.status, t.currentPeriodEnd),
   ],
 );
+
+export const invoiceStatus = pgEnum("invoice_status", [
+  "draft",
+  "open",
+  "paid",
+  "void",
+  "uncollectible",
+]);
+
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    number: text("number").unique(),
+    subscriptionId: uuid("subscription_id")
+      .notNull()
+      .references(() => subscriptions.id),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    status: invoiceStatus("status").notNull().default("draft"),
+    currency: text("currency").notNull(),
+    periodStart: timestamptz("period_start").notNull(),
+    periodEnd: timestamptz("period_end").notNull(),
+    totalCents: integer("total_cents").notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextPaymentAttemptAt: timestamptz("next_payment_attempt_at"),
+    finalizedAt: timestamptz("finalized_at"),
+    paidAt: timestamptz("paid_at"),
+    voidedAt: timestamptz("voided_at"),
+    createdAt: timestamptz("created_at").notNull(),
+    updatedAt: timestamptz("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("invoices_subscription_period_uq").on(t.subscriptionId, t.periodStart),
+    index("invoices_retry_idx").on(t.status, t.nextPaymentAttemptAt),
+    check("invoices_total_non_negative", sql`${t.totalCents} >= 0`),
+  ],
+);
+
+export const invoiceLineKind = pgEnum("invoice_line_kind", ["subscription", "proration"]);
+
+export const invoiceLines = pgTable(
+  "invoice_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    kind: invoiceLineKind("kind").notNull(),
+    description: text("description").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    periodStart: timestamptz("period_start").notNull(),
+    periodEnd: timestamptz("period_end").notNull(),
+  },
+  (t) => [index("invoice_lines_invoice_idx").on(t.invoiceId)],
+);
+
+export const invoiceCounters = pgTable("invoice_counters", {
+  year: integer("year").primaryKey(),
+  lastNumber: integer("last_number").notNull().default(0),
+});

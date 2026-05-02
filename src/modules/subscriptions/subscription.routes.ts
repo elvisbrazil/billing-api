@@ -1,12 +1,14 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import type { InvoiceService } from "../invoices/invoice.service.js";
 import type { SubscriptionService } from "./subscription.service.js";
 
 const idParams = z.object({ id: z.uuid() });
 
 export const subscriptionRoutes: FastifyPluginAsyncZod<{
   subscriptions: SubscriptionService;
-}> = async (app, { subscriptions }) => {
+  invoices: InvoiceService;
+}> = async (app, { subscriptions, invoices }) => {
   app.post(
     "/",
     {
@@ -23,5 +25,14 @@ export const subscriptionRoutes: FastifyPluginAsyncZod<{
 
   app.get("/:id", { schema: { tags: ["subscriptions"], params: idParams } }, async (request) =>
     subscriptions.get(request.params.id),
+  );
+
+  app.get(
+    "/:id/invoices",
+    { schema: { tags: ["subscriptions"], params: idParams } },
+    async (request) => {
+      await subscriptions.get(request.params.id);
+      return invoices.listForSubscription(request.params.id);
+    },
   );
 };

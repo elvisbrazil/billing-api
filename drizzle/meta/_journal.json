@@ -15,6 +15,13 @@
       "when": 1777423484173,
       "tag": "0001_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777749429350,
+      "tag": "0002_invoices",
+      "breakpoints": true
     }
   ]
 }

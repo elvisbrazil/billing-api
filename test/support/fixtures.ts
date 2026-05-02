@@ -30,3 +30,12 @@ export async function createCustomer(t: TestApp, email = `${randomUUID()}@exampl
   });
   return res.json<{ id: string; email: string }>();
 }
+
+export async function subscribe(t: TestApp, customerId: string, planId: string) {
+  const res = await t.app.inject({
+    method: "POST",
+    url: "/subscriptions",
+    payload: { customerId, planId },
+  });
+  return res.json();
+}
