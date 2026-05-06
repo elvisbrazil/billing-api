@@ -1,17 +1,20 @@
 import { buildApp } from "../../src/app.js";
+import { FakePaymentGateway } from "../../src/payments/fake-gateway.js";
 import { FakeClock } from "./clock.js";
 import { createTestDatabase } from "./db.js";
 
 export async function createTestApp() {
   const database = await createTestDatabase();
   const clock = new FakeClock();
-  const app = buildApp({ db: database.db, clock });
+  const gateway = new FakePaymentGateway();
+  const app = buildApp({ db: database.db, clock, gateway });
   await app.ready();
 
   return {
     app,
     db: database.db,
     clock,
+    gateway,
     async close() {
       await app.close();
       await database.close();

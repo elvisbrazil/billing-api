@@ -6,6 +6,15 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.url(),
+  FAKE_GATEWAY_DECLINED_EMAILS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((email) => email.trim())
+        .filter(Boolean),
+    ),
 });
 
 export type Config = z.infer<typeof envSchema>;

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp, type App } from "../src/app.js";
+import { FakePaymentGateway } from "../src/payments/fake-gateway.js";
 import { createTestDatabase } from "./support/db.js";
 
 describe("GET /health", () => {
@@ -9,7 +10,7 @@ describe("GET /health", () => {
   beforeAll(async () => {
     const database = await createTestDatabase();
     closeDb = database.close;
-    app = buildApp({ db: database.db });
+    app = buildApp({ db: database.db, gateway: new FakePaymentGateway() });
   });
 
   afterAll(async () => {

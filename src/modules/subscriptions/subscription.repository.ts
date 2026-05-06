@@ -13,11 +13,18 @@ export class SubscriptionRepository {
     return created!;
   }
 
-  async findById(id: string): Promise<Subscription | undefined> {
-    const [subscription] = await this.db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.id, id));
+  async findById(id: string, options: { lock?: boolean } = {}): Promise<Subscription | undefined> {
+    const query = this.db.select().from(subscriptions).where(eq(subscriptions.id, id));
+    const [subscription] = options.lock ? await query.for("update") : await query;
     return subscription;
+  }
+
+  async update(id: string, patch: Partial<NewSubscription>): Promise<Subscription> {
+    const [updated] = await this.db
+      .update(subscriptions)
+      .set(patch)
+      .where(eq(subscriptions.id, id))
+      .returning();
+    return updated!;
   }
 }

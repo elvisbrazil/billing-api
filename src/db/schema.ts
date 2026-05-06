@@ -136,3 +136,21 @@ export const invoiceCounters = pgTable("invoice_counters", {
   year: integer("year").primaryKey(),
   lastNumber: integer("last_number").notNull().default(0),
 });
+
+export const paymentAttemptStatus = pgEnum("payment_attempt_status", ["succeeded", "failed"]);
+
+export const paymentAttempts = pgTable(
+  "payment_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id),
+    status: paymentAttemptStatus("status").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    gatewayReference: text("gateway_reference"),
+    failureReason: text("failure_reason"),
+    attemptedAt: timestamptz("attempted_at").notNull(),
+  },
+  (t) => [index("payment_attempts_invoice_idx").on(t.invoiceId)],
+);

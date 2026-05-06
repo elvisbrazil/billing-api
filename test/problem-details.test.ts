@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { buildApp, type App } from "../src/app.js";
 import { conflict } from "../src/errors.js";
+import { FakePaymentGateway } from "../src/payments/fake-gateway.js";
 import { createTestDatabase } from "./support/db.js";
 
 describe("problem details", () => {
@@ -11,7 +12,7 @@ describe("problem details", () => {
   beforeAll(async () => {
     const database = await createTestDatabase();
     closeDb = database.close;
-    app = buildApp({ db: database.db });
+    app = buildApp({ db: database.db, gateway: new FakePaymentGateway() });
     app.get("/boom", async () => {
       throw new Error("kaboom");
     });

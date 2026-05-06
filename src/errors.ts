@@ -18,3 +18,6 @@ export const conflict = (detail: string, extensions?: Record<string, unknown>) =
 
 export const unprocessable = (detail: string, extensions?: Record<string, unknown>) =>
   new ProblemError(422, "Unprocessable Content", detail, extensions);
+
+export const paymentFailed = (detail: string, extensions?: Record<string, unknown>) =>
+  new ProblemError(402, "Payment Failed", detail, extensions);

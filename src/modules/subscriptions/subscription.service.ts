@@ -5,6 +5,7 @@ import { notFound, unprocessable } from "../../errors.js";
 import { CustomerRepository } from "../customers/customer.repository.js";
 import type { Invoice } from "../invoices/invoice.repository.js";
 import type { InvoiceService } from "../invoices/invoice.service.js";
+import type { PaymentService } from "../payments/payment.service.js";
 import { PlanRepository } from "../plans/plan.repository.js";
 import { SubscriptionRepository, type Subscription } from "./subscription.repository.js";
 
@@ -22,6 +23,7 @@ export class SubscriptionService {
     private readonly db: Database,
     private readonly clock: Clock,
     private readonly invoices: InvoiceService,
+    private readonly payments: PaymentService,
   ) {}
 
   async create(input: CreateSubscriptionInput): Promise<CreatedSubscription> {
@@ -49,7 +51,7 @@ export class SubscriptionService {
     }
 
     const period = billingPeriod(now, plan.interval, 0);
-    return this.db.transaction(async (tx) => {
+    const created = await this.db.transaction(async (tx) => {
       const subscription = await new SubscriptionRepository(tx).insert({
         customerId: customer.id,
         planId: plan.id,
@@ -61,8 +63,12 @@ export class SubscriptionService {
         updatedAt: now,
       });
       const invoice = await this.invoices.issue(tx, subscription, plan, period);
-      return { ...subscription, latestInvoice: invoice ?? null };
+      return { subscription, invoice: invoice! };
     });
+
+    const { invoice } = await this.payments.pay(created.invoice.id);
+    const subscription = await this.get(created.subscription.id);
+    return { ...subscription, latestInvoice: invoice };
   }
 
   async get(id: string): Promise<Subscription> {
