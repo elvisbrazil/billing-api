@@ -1,5 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import type { IdempotencyHooks } from "../../plugins/idempotency.js";
 import type { InvoiceService } from "../invoices/invoice.service.js";
 import type { SubscriptionService } from "./subscription.service.js";
 
@@ -8,10 +9,12 @@ const idParams = z.object({ id: z.uuid() });
 export const subscriptionRoutes: FastifyPluginAsyncZod<{
   subscriptions: SubscriptionService;
   invoices: InvoiceService;
-}> = async (app, { subscriptions, invoices }) => {
+  idempotency: IdempotencyHooks;
+}> = async (app, { subscriptions, invoices, idempotency }) => {
   app.post(
     "/",
     {
+      ...idempotency,
       schema: {
         tags: ["subscriptions"],
         body: z.object({ customerId: z.uuid(), planId: z.uuid() }),

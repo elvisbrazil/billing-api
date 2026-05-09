@@ -6,6 +6,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -153,4 +154,18 @@ export const paymentAttempts = pgTable(
     attemptedAt: timestamptz("attempted_at").notNull(),
   },
   (t) => [index("payment_attempts_invoice_idx").on(t.invoiceId)],
+);
+
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    scope: text("scope").notNull(),
+    key: text("key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    statusCode: integer("status_code"),
+    contentType: text("content_type"),
+    responseBody: text("response_body"),
+    createdAt: timestamptz("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.scope, t.key] })],
 );

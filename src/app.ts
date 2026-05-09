@@ -19,6 +19,7 @@ import { PlanService } from "./modules/plans/plan.service.js";
 import { subscriptionRoutes } from "./modules/subscriptions/subscription.routes.js";
 import { SubscriptionService } from "./modules/subscriptions/subscription.service.js";
 import type { PaymentGateway } from "./payments/gateway.js";
+import { idempotencyHooks } from "./plugins/idempotency.js";
 import { registerProblemDetails } from "./plugins/problem-details.js";
 
 export interface AppOptions {
@@ -42,6 +43,7 @@ export function buildApp(options: AppOptions) {
   const invoices = new InvoiceService(db, clock);
   const payments = new PaymentService(db, clock, options.gateway);
   const subscriptions = new SubscriptionService(db, clock, invoices, payments);
+  const idempotency = idempotencyHooks(db, clock);
 
   app.get("/health", async () => {
     await db.execute(sql`select 1`);
@@ -50,8 +52,13 @@ export function buildApp(options: AppOptions) {
 
   app.register(planRoutes, { prefix: "/plans", plans });
   app.register(customerRoutes, { prefix: "/customers", customers });
-  app.register(subscriptionRoutes, { prefix: "/subscriptions", subscriptions, invoices });
-  app.register(invoiceRoutes, { prefix: "/invoices", invoices, payments });
+  app.register(subscriptionRoutes, {
+    prefix: "/subscriptions",
+    subscriptions,
+    invoices,
+    idempotency,
+  });
+  app.register(invoiceRoutes, { prefix: "/invoices", invoices, payments, idempotency });
 
   return app;
 }

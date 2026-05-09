@@ -11,6 +11,8 @@ export class ProblemError extends Error {
   }
 }
 
+export const badRequest = (detail: string) => new ProblemError(400, "Bad Request", detail);
+
 export const notFound = (detail: string) => new ProblemError(404, "Not Found", detail);
 
 export const conflict = (detail: string, extensions?: Record<string, unknown>) =>

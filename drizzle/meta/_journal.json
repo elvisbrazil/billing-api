@@ -29,6 +29,13 @@
       "when": 1778061051350,
       "tag": "0003_payment_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778351283480,
+      "tag": "0004_idempotency_keys",
+      "breakpoints": true
     }
   ]
 }
