@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { addDays } from "../src/billing/period.js";
 import { InvoiceRepository } from "../src/modules/invoices/invoice.repository.js";
 import { formatInvoiceNumber, InvoiceService } from "../src/modules/invoices/invoice.service.js";
@@ -9,13 +9,12 @@ describe("invoice numbering", () => {
   let t: TestApp;
   let service: InvoiceService;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     t = await createTestApp();
-    t.clock.set("2026-12-31T23:00:00Z");
     service = new InvoiceService(t.db, t.clock);
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await t.close();
   });
 
@@ -51,15 +50,17 @@ describe("invoice numbering", () => {
   });
 
   it("hands out contiguous numbers to concurrent finalizations", async () => {
+    t.clock.set("2031-03-10T10:00:00Z");
     const ids = await createDrafts(25);
 
     const finalized = await Promise.all(ids.map((id) => service.finalize(id)));
 
     const numbers = finalized.map((invoice) => invoice.number).sort();
-    expect(numbers).toEqual(Array.from({ length: 25 }, (_, i) => formatInvoiceNumber(2026, i + 1)));
+    expect(numbers).toEqual(Array.from({ length: 25 }, (_, i) => formatInvoiceNumber(2031, i + 1)));
   });
 
   it("does not burn a number when the transaction rolls back", async () => {
+    t.clock.set("2032-07-01T10:00:00Z");
     const [first, second] = await createDrafts(2);
 
     await expect(
@@ -70,16 +71,17 @@ describe("invoice numbering", () => {
     ).rejects.toThrow("payment provider exploded");
 
     const invoice = await service.finalize(second!);
-    expect(invoice.number).toBe("2026-000001");
+    expect(invoice.number).toBe("2032-000001");
   });
 
   it("restarts the sequence each year", async () => {
-    const [last2026, first2027] = await createDrafts(2);
+    t.clock.set("2033-12-31T23:59:59Z");
+    const [lastOfYear, firstOfYear] = await createDrafts(2);
 
-    await service.finalize(last2026!);
-    t.clock.set("2027-01-01T00:00:01Z");
-    const invoice = await service.finalize(first2027!);
+    await service.finalize(lastOfYear!);
+    t.clock.set("2034-01-01T00:00:01Z");
+    const invoice = await service.finalize(firstOfYear!);
 
-    expect(invoice.number).toBe("2027-000001");
+    expect(invoice.number).toBe("2034-000001");
   });
 });
