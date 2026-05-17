@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
 import { invoiceCounters, invoiceLines, invoices } from "../../db/schema.js";
 
@@ -55,6 +55,14 @@ export class InvoiceRepository {
       .where(eq(invoices.id, id))
       .returning();
     return updated!;
+  }
+
+  voidOpenForSubscription(subscriptionId: string, now: Date): Promise<Invoice[]> {
+    return this.db
+      .update(invoices)
+      .set({ status: "void", voidedAt: now, nextPaymentAttemptAt: null, updatedAt: now })
+      .where(and(eq(invoices.subscriptionId, subscriptionId), eq(invoices.status, "open")))
+      .returning();
   }
 
   async nextNumber(year: number): Promise<number> {

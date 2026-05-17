@@ -1,12 +1,13 @@
 import { addDays, billingPeriod } from "../../billing/period.js";
 import type { Clock } from "../../clock.js";
 import type { Database } from "../../db/client.js";
-import { notFound, unprocessable } from "../../errors.js";
+import { conflict, notFound, unprocessable } from "../../errors.js";
 import { CustomerRepository } from "../customers/customer.repository.js";
-import type { Invoice } from "../invoices/invoice.repository.js";
+import { InvoiceRepository, type Invoice } from "../invoices/invoice.repository.js";
 import type { InvoiceService } from "../invoices/invoice.service.js";
 import type { PaymentService } from "../payments/payment.service.js";
 import { PlanRepository } from "../plans/plan.repository.js";
+import { assertTransition } from "./lifecycle.js";
 import { SubscriptionRepository, type Subscription } from "./subscription.repository.js";
 
 export interface CreateSubscriptionInput {
@@ -69,6 +70,31 @@ export class SubscriptionService {
     const { invoice } = await this.payments.pay(created.invoice.id);
     const subscription = await this.get(created.subscription.id);
     return { ...subscription, latestInvoice: invoice };
+  }
+
+  async cancel(id: string, options: { atPeriodEnd: boolean }): Promise<Subscription> {
+    return this.db.transaction(async (tx) => {
+      const subscriptions = new SubscriptionRepository(tx);
+      const subscription = await subscriptions.findById(id, { lock: true });
+      if (!subscription) throw notFound(`Subscription ${id} not found`);
+      if (subscription.status === "canceled") {
+        throw conflict(`Subscription ${id} is already canceled`);
+      }
+
+      const now = this.clock.now();
+      if (options.atPeriodEnd) {
+        return subscriptions.update(id, { cancelAtPeriodEnd: true, updatedAt: now });
+      }
+
+      assertTransition(subscription.status, "canceled");
+      await new InvoiceRepository(tx).voidOpenForSubscription(id, now);
+      return subscriptions.update(id, {
+        status: "canceled",
+        canceledAt: now,
+        cancelAtPeriodEnd: false,
+        updatedAt: now,
+      });
+    });
   }
 
   async get(id: string): Promise<Subscription> {
