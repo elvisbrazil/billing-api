@@ -1,4 +1,4 @@
-import type { Period } from "../../billing/period.js";
+import { formatDay, type Period } from "../../billing/period.js";
 import type { Clock } from "../../clock.js";
 import type { Database } from "../../db/client.js";
 import { conflict, notFound } from "../../errors.js";
@@ -8,10 +8,6 @@ import { InvoiceRepository, type Invoice, type NewInvoiceLine } from "./invoice.
 
 export function formatInvoiceNumber(year: number, sequence: number): string {
   return `${year}-${String(sequence).padStart(6, "0")}`;
-}
-
-function day(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 export class InvoiceService {
@@ -27,18 +23,37 @@ export class InvoiceService {
     period: Period,
   ): Promise<Invoice | undefined> {
     const now = this.clock.now();
+    const repository = new InvoiceRepository(tx);
+    const pending = await repository.pendingItems(subscription.id);
+
     const lines: NewInvoiceLine[] = [
       {
         kind: "subscription",
-        description: `${plan.name} (${day(period.start)} to ${day(period.end)})`,
+        description: `${plan.name} (${formatDay(period.start)} to ${formatDay(period.end)})`,
         amountCents: plan.priceCents,
         periodStart: period.start,
         periodEnd: period.end,
       },
+      ...pending.map(({ kind, description, amountCents, periodStart, periodEnd }) => ({
+        kind,
+        description,
+        amountCents,
+        periodStart,
+        periodEnd,
+      })),
     ];
-    const total = lines.reduce((sum, line) => sum + line.amountCents, 0);
 
-    const repository = new InvoiceRepository(tx);
+    const subtotal = lines.reduce((sum, line) => sum + line.amountCents, 0);
+    if (subtotal < 0) {
+      lines.push({
+        kind: "credit",
+        description: "Unused credit carried over to the next invoice",
+        amountCents: -subtotal,
+        periodStart: period.start,
+        periodEnd: period.end,
+      });
+    }
+
     const draft = await repository.insertDraft(
       {
         subscriptionId: subscription.id,
@@ -46,13 +61,31 @@ export class InvoiceService {
         currency: plan.currency,
         periodStart: period.start,
         periodEnd: period.end,
-        totalCents: total,
+        totalCents: Math.max(0, subtotal),
         createdAt: now,
         updatedAt: now,
       },
       lines,
     );
     if (!draft) return undefined;
+
+    await repository.attachPendingItems(
+      pending.map((item) => item.id),
+      draft.id,
+    );
+    if (subtotal < 0) {
+      await repository.addPendingItems([
+        {
+          subscriptionId: subscription.id,
+          kind: "credit",
+          description: "Credit carried over from a previous invoice",
+          amountCents: subtotal,
+          periodStart: period.start,
+          periodEnd: period.end,
+          createdAt: now,
+        },
+      ]);
+    }
 
     return this.finalize(draft.id, tx);
   }

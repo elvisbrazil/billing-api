@@ -43,6 +43,18 @@ export const subscriptionRoutes: FastifyPluginAsyncZod<{
       subscriptions.cancel(request.params.id, { atPeriodEnd: request.body?.atPeriodEnd ?? true }),
   );
 
+  app.post(
+    "/:id/change-plan",
+    {
+      schema: {
+        tags: ["subscriptions"],
+        params: idParams,
+        body: z.object({ planId: z.uuid() }),
+      },
+    },
+    async (request) => subscriptions.changePlan(request.params.id, request.body.planId),
+  );
+
   app.get(
     "/:id/invoices",
     { schema: { tags: ["subscriptions"], params: idParams } },

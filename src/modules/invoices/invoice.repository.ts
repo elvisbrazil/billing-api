@@ -1,11 +1,13 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database } from "../../db/client.js";
-import { invoiceCounters, invoiceLines, invoices } from "../../db/schema.js";
+import { invoiceCounters, invoiceLines, invoices, pendingInvoiceItems } from "../../db/schema.js";
 
 export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
 export type InvoiceLine = typeof invoiceLines.$inferSelect;
 export type NewInvoiceLine = Omit<typeof invoiceLines.$inferInsert, "invoiceId">;
+export type PendingItem = typeof pendingInvoiceItems.$inferSelect;
+export type NewPendingItem = typeof pendingInvoiceItems.$inferInsert;
 
 export class InvoiceRepository {
   constructor(private readonly db: Database) {}
@@ -63,6 +65,33 @@ export class InvoiceRepository {
       .set({ status: "void", voidedAt: now, nextPaymentAttemptAt: null, updatedAt: now })
       .where(and(eq(invoices.subscriptionId, subscriptionId), eq(invoices.status, "open")))
       .returning();
+  }
+
+  pendingItems(subscriptionId: string): Promise<PendingItem[]> {
+    return this.db
+      .select()
+      .from(pendingInvoiceItems)
+      .where(
+        and(
+          eq(pendingInvoiceItems.subscriptionId, subscriptionId),
+          isNull(pendingInvoiceItems.invoiceId),
+        ),
+      )
+      .orderBy(asc(pendingInvoiceItems.createdAt))
+      .for("update");
+  }
+
+  async addPendingItems(items: NewPendingItem[]): Promise<void> {
+    if (items.length === 0) return;
+    await this.db.insert(pendingInvoiceItems).values(items);
+  }
+
+  async attachPendingItems(ids: string[], invoiceId: string): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db
+      .update(pendingInvoiceItems)
+      .set({ invoiceId })
+      .where(inArray(pendingInvoiceItems.id, ids));
   }
 
   async nextNumber(year: number): Promise<number> {

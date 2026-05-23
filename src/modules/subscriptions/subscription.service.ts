@@ -1,4 +1,5 @@
-import { addDays, billingPeriod } from "../../billing/period.js";
+import { addDays, billingPeriod, formatDay } from "../../billing/period.js";
+import { calculateProration, type Proration } from "../../billing/proration.js";
 import type { Clock } from "../../clock.js";
 import type { Database } from "../../db/client.js";
 import { conflict, notFound, unprocessable } from "../../errors.js";
@@ -17,6 +18,10 @@ export interface CreateSubscriptionInput {
 
 export interface CreatedSubscription extends Subscription {
   latestInvoice: Invoice | null;
+}
+
+export interface PlanChange extends Subscription {
+  proration: Proration | null;
 }
 
 export class SubscriptionService {
@@ -94,6 +99,68 @@ export class SubscriptionService {
         cancelAtPeriodEnd: false,
         updatedAt: now,
       });
+    });
+  }
+
+  async changePlan(id: string, planId: string): Promise<PlanChange> {
+    return this.db.transaction(async (tx) => {
+      const subscriptions = new SubscriptionRepository(tx);
+      const plans = new PlanRepository(tx);
+
+      const subscription = await subscriptions.findById(id, { lock: true });
+      if (!subscription) throw notFound(`Subscription ${id} not found`);
+      if (subscription.status !== "active" && subscription.status !== "trialing") {
+        throw conflict(`Cannot change the plan of a ${subscription.status} subscription`);
+      }
+      if (subscription.planId === planId) {
+        throw unprocessable("The subscription is already on this plan");
+      }
+
+      const current = (await plans.findById(subscription.planId))!;
+      const next = await plans.findById(planId);
+      if (!next) throw unprocessable(`Plan ${planId} does not exist`);
+      if (next.interval !== current.interval || next.currency !== current.currency) {
+        throw unprocessable("Plan changes must keep the same interval and currency");
+      }
+
+      const now = this.clock.now();
+      if (subscription.status === "trialing") {
+        const updated = await subscriptions.update(id, { planId, updatedAt: now });
+        return { ...updated, proration: null };
+      }
+
+      const proration = calculateProration({
+        currentPriceCents: current.priceCents,
+        newPriceCents: next.priceCents,
+        periodStart: subscription.currentPeriodStart,
+        periodEnd: subscription.currentPeriodEnd,
+        changeAt: now,
+      });
+
+      const item = {
+        subscriptionId: id,
+        kind: "proration" as const,
+        periodStart: now,
+        periodEnd: subscription.currentPeriodEnd,
+        createdAt: now,
+      };
+      await new InvoiceRepository(tx).addPendingItems(
+        [
+          {
+            ...item,
+            description: `Unused time on ${current.name} after ${formatDay(now)}`,
+            amountCents: proration.creditCents,
+          },
+          {
+            ...item,
+            description: `Remaining time on ${next.name} after ${formatDay(now)}`,
+            amountCents: proration.chargeCents,
+          },
+        ].filter((line) => line.amountCents !== 0),
+      );
+
+      const updated = await subscriptions.update(id, { planId, updatedAt: now });
+      return { ...updated, proration };
     });
   }
 

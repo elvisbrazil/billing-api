@@ -115,7 +115,7 @@ export const invoices = pgTable(
   ],
 );
 
-export const invoiceLineKind = pgEnum("invoice_line_kind", ["subscription", "proration"]);
+export const invoiceLineKind = pgEnum("invoice_line_kind", ["subscription", "proration", "credit"]);
 
 export const invoiceLines = pgTable(
   "invoice_lines",
@@ -168,4 +168,22 @@ export const idempotencyKeys = pgTable(
     createdAt: timestamptz("created_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.scope, t.key] })],
+);
+
+export const pendingInvoiceItems = pgTable(
+  "pending_invoice_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subscriptionId: uuid("subscription_id")
+      .notNull()
+      .references(() => subscriptions.id),
+    kind: invoiceLineKind("kind").notNull(),
+    description: text("description").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    periodStart: timestamptz("period_start").notNull(),
+    periodEnd: timestamptz("period_end").notNull(),
+    invoiceId: uuid("invoice_id").references(() => invoices.id),
+    createdAt: timestamptz("created_at").notNull(),
+  },
+  (t) => [index("pending_invoice_items_subscription_idx").on(t.subscriptionId, t.invoiceId)],
 );
