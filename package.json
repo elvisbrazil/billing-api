@@ -17,13 +17,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --env-file-if-exists=.env src/db/migrate.ts"
+    "db:migrate": "tsx --env-file-if-exists=.env src/db/migrate.ts",
+    "job:renew": "tsx --env-file-if-exists=.env src/jobs/renew.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
     "fastify": "5.8.5",
     "fastify-type-provider-zod": "6.1.0",
     "pg": "8.20.0",
+    "pino": "10.4.0",
     "zod": "4.3.6"
   },
   "devDependencies": {

@@ -7,20 +7,14 @@ import {
 } from "fastify-type-provider-zod";
 import { systemClock, type Clock } from "./clock.js";
 import type { Database } from "./db/client.js";
-import { CustomerRepository } from "./modules/customers/customer.repository.js";
 import { customerRoutes } from "./modules/customers/customer.routes.js";
-import { CustomerService } from "./modules/customers/customer.service.js";
 import { invoiceRoutes } from "./modules/invoices/invoice.routes.js";
-import { InvoiceService } from "./modules/invoices/invoice.service.js";
-import { PaymentService } from "./modules/payments/payment.service.js";
-import { PlanRepository } from "./modules/plans/plan.repository.js";
 import { planRoutes } from "./modules/plans/plan.routes.js";
-import { PlanService } from "./modules/plans/plan.service.js";
 import { subscriptionRoutes } from "./modules/subscriptions/subscription.routes.js";
-import { SubscriptionService } from "./modules/subscriptions/subscription.service.js";
 import type { PaymentGateway } from "./payments/gateway.js";
 import { idempotencyHooks } from "./plugins/idempotency.js";
 import { registerProblemDetails } from "./plugins/problem-details.js";
+import { createServices } from "./services.js";
 
 export interface AppOptions {
   db: Database;
@@ -38,11 +32,11 @@ export function buildApp(options: AppOptions) {
   registerProblemDetails(app);
 
   const clock = options.clock ?? systemClock;
-  const plans = new PlanService(new PlanRepository(db));
-  const customers = new CustomerService(new CustomerRepository(db));
-  const invoices = new InvoiceService(db, clock);
-  const payments = new PaymentService(db, clock, options.gateway);
-  const subscriptions = new SubscriptionService(db, clock, invoices, payments);
+  const { plans, customers, invoices, payments, subscriptions } = createServices({
+    db,
+    clock,
+    gateway: options.gateway,
+  });
   const idempotency = idempotencyHooks(db, clock);
 
   app.get("/health", async () => {

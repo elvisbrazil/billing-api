@@ -1,4 +1,5 @@
 import { buildApp } from "../../src/app.js";
+import { createServices } from "../../src/services.js";
 import { FakePaymentGateway } from "../../src/payments/fake-gateway.js";
 import { FakeClock } from "./clock.js";
 import { createTestDatabase } from "./db.js";
@@ -15,6 +16,7 @@ export async function createTestApp() {
     db: database.db,
     clock,
     gateway,
+    services: createServices({ db: database.db, clock, gateway }),
     async close() {
       await app.close();
       await database.close();
