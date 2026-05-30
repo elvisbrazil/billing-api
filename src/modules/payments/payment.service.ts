@@ -1,3 +1,5 @@
+import { and, asc, eq } from "drizzle-orm";
+import { nextRetryAt } from "../../billing/dunning.js";
 import type { Clock } from "../../clock.js";
 import type { Database } from "../../db/client.js";
 import { paymentAttempts } from "../../db/schema.js";
@@ -30,7 +32,7 @@ export class PaymentService {
       if (invoice.status !== "open") {
         throw conflict(`Invoice ${invoice.id} is ${invoice.status} and cannot be paid`);
       }
-      const subscription = await subscriptions.findById(invoice.subscriptionId, { lock: true });
+      const subscription = (await subscriptions.findById(invoice.subscriptionId, { lock: true }))!;
       const customer = await new CustomerRepository(tx).findById(invoice.customerId);
       const attemptNumber = invoice.attemptCount + 1;
 
@@ -63,28 +65,48 @@ export class PaymentService {
           nextPaymentAttemptAt: null,
           updatedAt: now,
         });
-        if (
-          subscription &&
-          subscription.status !== "active" &&
-          subscription.status !== "canceled"
-        ) {
+        if (subscription.status === "trialing" || subscription.status === "past_due") {
           assertTransition(subscription.status, "active");
           await subscriptions.update(subscription.id, { status: "active", updatedAt: now });
         }
         return { invoice: paid, result };
       }
 
-      const failed = await invoices.update(invoice.id, {
+      const [firstFailure] = await tx
+        .select({ attemptedAt: paymentAttempts.attemptedAt })
+        .from(paymentAttempts)
+        .where(and(eq(paymentAttempts.invoiceId, invoice.id), eq(paymentAttempts.status, "failed")))
+        .orderBy(asc(paymentAttempts.attemptedAt))
+        .limit(1);
+      const retryAt = nextRetryAt(firstFailure!.attemptedAt, attemptNumber);
+
+      if (retryAt) {
+        const failed = await invoices.update(invoice.id, {
+          attemptCount: attemptNumber,
+          nextPaymentAttemptAt: retryAt,
+          updatedAt: now,
+        });
+        if (subscription.status === "active" || subscription.status === "trialing") {
+          await subscriptions.update(subscription.id, { status: "past_due", updatedAt: now });
+        }
+        return { invoice: failed, result };
+      }
+
+      const uncollectible = await invoices.update(invoice.id, {
+        status: "uncollectible",
         attemptCount: attemptNumber,
+        nextPaymentAttemptAt: null,
         updatedAt: now,
       });
-      if (
-        subscription &&
-        (subscription.status === "active" || subscription.status === "trialing")
-      ) {
-        await subscriptions.update(subscription.id, { status: "past_due", updatedAt: now });
+      if (subscription.status !== "canceled") {
+        await subscriptions.update(subscription.id, {
+          status: "canceled",
+          canceledAt: now,
+          cancelAtPeriodEnd: false,
+          updatedAt: now,
+        });
       }
-      return { invoice: failed, result };
+      return { invoice: uncollectible, result };
     });
   }
 }

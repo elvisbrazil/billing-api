@@ -10,13 +10,13 @@ const logger = pino({ level: config.LOG_LEVEL });
 const database = connect(config.DATABASE_URL);
 
 try {
-  const { renewal } = createServices({
+  const { renewal, dunning } = createServices({
     db: database.db,
     clock: systemClock,
     gateway: new FakePaymentGateway({ declinedEmails: config.FAKE_GATEWAY_DECLINED_EMAILS }),
   });
-  const summary = await renewal.run();
-  logger.info(summary, "renewal finished");
+  logger.info(await renewal.run(), "renewals processed");
+  logger.info(await dunning.run(), "payment retries processed");
 } catch (err) {
   logger.error(err, "renewal failed");
   process.exitCode = 1;

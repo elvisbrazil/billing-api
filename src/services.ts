@@ -7,6 +7,7 @@ import { PaymentService } from "./modules/payments/payment.service.js";
 import { PlanRepository } from "./modules/plans/plan.repository.js";
 import { PlanService } from "./modules/plans/plan.service.js";
 import { SubscriptionService } from "./modules/subscriptions/subscription.service.js";
+import { DunningJob } from "./jobs/dunning.js";
 import { RenewalJob } from "./jobs/renewal.js";
 import type { PaymentGateway } from "./payments/gateway.js";
 
@@ -27,6 +28,7 @@ export function createServices({ db, clock, gateway }: Dependencies) {
     payments,
     subscriptions: new SubscriptionService(db, clock, invoices, payments),
     renewal: new RenewalJob(db, clock, invoices, payments),
+    dunning: new DunningJob(db, clock, payments),
   };
 }
 
