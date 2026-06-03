@@ -4,21 +4,17 @@ import { loadConfig } from "../config.js";
 import { connect } from "../db/client.js";
 import { FakePaymentGateway } from "../payments/fake-gateway.js";
 import { createServices } from "../services.js";
+import { runBillingCycle } from "./billing-cycle.js";
 
 const config = loadConfig();
 const logger = pino({ level: config.LOG_LEVEL });
 const database = connect(config.DATABASE_URL);
 
 try {
-  const { renewal, dunning } = createServices({
-    db: database.db,
-    clock: systemClock,
-    gateway: new FakePaymentGateway({ declinedEmails: config.FAKE_GATEWAY_DECLINED_EMAILS }),
-  });
-  logger.info(await renewal.run(), "renewals processed");
-  logger.info(await dunning.run(), "payment retries processed");
+  const gateway = new FakePaymentGateway({ declinedEmails: config.FAKE_GATEWAY_DECLINED_EMAILS });
+  await runBillingCycle(createServices({ db: database.db, clock: systemClock, gateway }), logger);
 } catch (err) {
-  logger.error(err, "renewal failed");
+  logger.error(err, "billing cycle failed");
   process.exitCode = 1;
 } finally {
   await database.close();

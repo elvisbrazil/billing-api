@@ -6,6 +6,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.url(),
+  BILLING_JOB_INTERVAL_MS: z.coerce.number().int().nonnegative().default(0),
   FAKE_GATEWAY_DECLINED_EMAILS: z
     .string()
     .default("")
