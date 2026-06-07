@@ -12,6 +12,7 @@ import { invoiceRoutes } from "./modules/invoices/invoice.routes.js";
 import { planRoutes } from "./modules/plans/plan.routes.js";
 import { subscriptionRoutes } from "./modules/subscriptions/subscription.routes.js";
 import type { PaymentGateway } from "./payments/gateway.js";
+import { registerDocs } from "./plugins/docs.js";
 import { idempotencyHooks } from "./plugins/idempotency.js";
 import { registerProblemDetails } from "./plugins/problem-details.js";
 import { createServices } from "./services.js";
@@ -30,6 +31,7 @@ export function buildApp(options: AppOptions) {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerProblemDetails(app);
+  app.register(registerDocs);
 
   const clock = options.clock ?? systemClock;
   const { plans, customers, invoices, payments, subscriptions } = createServices({

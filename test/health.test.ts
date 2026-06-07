@@ -3,7 +3,7 @@ import { buildApp, type App } from "../src/app.js";
 import { FakePaymentGateway } from "../src/payments/fake-gateway.js";
 import { createTestDatabase } from "./support/db.js";
 
-describe("GET /health", () => {
+describe("operational routes", () => {
   let app: App;
   let closeDb: () => Promise<void>;
 
@@ -22,5 +22,11 @@ describe("GET /health", () => {
     const res = await app.inject({ method: "GET", url: "/health" });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: "ok" });
+  });
+
+  it("serves the OpenAPI document", async () => {
+    const res = await app.inject({ method: "GET", url: "/docs/json" });
+    expect(res.statusCode).toBe(200);
+    expect(Object.keys(res.json().paths)).toContain("/subscriptions/{id}/change-plan");
   });
 });
