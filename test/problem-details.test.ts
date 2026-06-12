@@ -48,6 +48,17 @@ describe("problem details", () => {
     expect(res.json().errors).toHaveLength(1);
   });
 
+  it("uses the matching title for framework errors", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/echo",
+      headers: { "content-type": "text/csv" },
+      payload: "amount\n1",
+    });
+    expect(res.statusCode).toBe(415);
+    expect(res.json().title).toBe("Unsupported Media Type");
+  });
+
   it("hides internal error messages", async () => {
     const res = await app.inject({ method: "GET", url: "/boom" });
     expect(res.statusCode).toBe(500);

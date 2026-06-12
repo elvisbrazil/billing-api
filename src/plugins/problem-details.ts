@@ -1,3 +1,4 @@
+import { STATUS_CODES } from "node:http";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { hasZodFastifySchemaValidationErrors } from "fastify-type-provider-zod";
 import { ProblemError } from "../errors.js";
@@ -45,7 +46,7 @@ export function registerProblemDetails(app: FastifyInstance) {
     if (statusCode && statusCode >= 400 && statusCode < 500) {
       return sendProblem(request, reply, {
         status: statusCode,
-        title: "Bad Request",
+        title: STATUS_CODES[statusCode] ?? "Bad Request",
         detail: (error as Error).message,
       });
     }
