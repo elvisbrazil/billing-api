@@ -35,4 +35,15 @@ describe("customers routes", () => {
     });
     expect(res.statusCode).toBe(409);
   });
+
+  it("answers 404 for an unknown customer and 400 for a malformed id", async () => {
+    const unknown = await t.app.inject({
+      method: "GET",
+      url: "/customers/3f1c9d2e-5b7a-4c8e-9f0a-1b2c3d4e5f60",
+    });
+    const malformed = await t.app.inject({ method: "GET", url: "/customers/123" });
+
+    expect(unknown.statusCode).toBe(404);
+    expect(malformed.statusCode).toBe(400);
+  });
 });
