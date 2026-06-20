@@ -23,6 +23,14 @@ pnpm test        # vitest, uses PGlite, no Docker needed
 pnpm job:renew   # run renewals and payment retries once
 ```
 
+With the Docker image, migrations and the job are plain node entrypoints:
+
+```bash
+docker build -t billing-api .
+docker run --rm -e DATABASE_URL=... billing-api node dist/db/migrate.js
+docker run --rm -e DATABASE_URL=... billing-api node dist/jobs/renew.js
+```
+
 Set `BILLING_JOB_INTERVAL_MS` to run the same billing cycle inside the API process on an interval
 (`0` disables it).
 
